@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -278,3 +279,19 @@ def test_advisory_has_a_whatsapp_share_link(client, fake_gemini) -> None:
     assert 'href="https://wa.me/?text=' in page
     assert 'rel="noopener noreferrer"' in page
     assert "Share on WhatsApp" in page
+
+
+def test_every_radio_has_an_id_and_a_matching_label(client) -> None:
+    page = _html(client.get("/"))
+    radio_ids = re.findall(r'<input type="radio" id="([^"]+)"', page)
+    assert len(radio_ids) == 7  # 3 roles, 2 languages, 2 reading levels
+    assert len(set(radio_ids)) == len(radio_ids)
+    for radio_id in radio_ids:
+        assert f'for="{radio_id}"' in page
+    assert len(re.findall(r'<input type="radio"(?! id=)', page)) == 0
+
+
+def test_whatsapp_link_says_it_opens_a_new_tab(client, fake_gemini) -> None:
+    fake_gemini()
+    page = _html(client.post("/analyse", data=FORM))
+    assert "(opens in a new tab)" in page

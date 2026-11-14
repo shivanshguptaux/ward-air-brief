@@ -98,8 +98,8 @@
           {% endif %}
           <div class="segmented">
             {% for key, label in roles.items() %}
-              <label class="segmented__option">
-                <input type="radio" name="role" value="{{ key }}" {% if form.role == key %}checked{% endif %}>
+              <label class="segmented__option" for="role-{{ key }}">
+                <input type="radio" id="role-{{ key }}" name="role" value="{{ key }}" {% if form.role == key %}checked{% endif %}>
                 <span>{{ label }}</span>
               </label>
             {% endfor %}
@@ -114,8 +114,8 @@
           {% endif %}
           <div class="segmented">
             {% for key, label in languages.items() %}
-              <label class="segmented__option">
-                <input type="radio" name="language" value="{{ key }}" {% if form.language == key %}checked{% endif %}>
+              <label class="segmented__option" for="language-{{ key }}">
+                <input type="radio" id="language-{{ key }}" name="language" value="{{ key }}" {% if form.language == key %}checked{% endif %}>
                 <span>{{ label }}</span>
               </label>
             {% endfor %}
@@ -130,8 +130,8 @@
           {% endif %}
           <div class="segmented">
             {% for key, label in reading_levels.items() %}
-              <label class="segmented__option">
-                <input type="radio" name="reading_level" value="{{ key }}" {% if form.reading_level == key %}checked{% endif %}>
+              <label class="segmented__option" for="reading_level-{{ key }}">
+                <input type="radio" id="reading_level-{{ key }}" name="reading_level" value="{{ key }}" {% if form.reading_level == key %}checked{% endif %}>
                 <span>{{ label.split(' (')[0] }}</span>
               </label>
             {% endfor %}
@@ -512,6 +512,7 @@
                         class="btn btn--primary"
                       >
                         {{ 'WhatsApp पर भेजें (Share on WhatsApp)' if result.language == 'hi' else 'Share on WhatsApp' }}
+                        <span class="visually-hidden">{{ '(नए टैब में खुलता है)' if result.language == 'hi' else '(opens in a new tab)' }}</span>
                       </a>
                     </div>
                   {% endif %}
