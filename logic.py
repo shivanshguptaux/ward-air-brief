@@ -8,6 +8,7 @@ import re
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import quote
 
 # CPCB National Air Quality Index (NAQI) 24-hr breakpoints (in ug/m3)
 # Format: (c_low, c_high, i_low, i_high)
@@ -603,3 +604,32 @@ def verify_citations(
         "hotspots": verified_hotspots,
         "actions": verified_actions,
     }
+
+
+def build_whatsapp_share_url(citizen_advisory: dict[str, Any], language: str) -> str:
+    """Format the citizen advisory into a clean WhatsApp share link (https://wa.me/?text=...)."""
+    headline = str(citizen_advisory.get("headline", "")).strip()
+    general = str(citizen_advisory.get("general_advice", "")).strip()
+    children = str(citizen_advisory.get("children", "")).strip()
+    older = str(citizen_advisory.get("older_adults", "")).strip()
+    sensitive = str(citizen_advisory.get("sensitive_groups", "")).strip()
+
+    if language == "hi":
+        lines = [
+            f"*वायु सलाह · भोपाल: {headline}*",
+            general,
+            f"• *बच्चों के लिए:* {children}",
+            f"• *बुज़ुर्गों के लिए:* {older}",
+            f"• *सांस या दिल के रोगी:* {sensitive}",
+        ]
+    else:
+        lines = [
+            f"*Air Advisory · Bhopal: {headline}*",
+            general,
+            f"• *Children:* {children}",
+            f"• *Older adults:* {older}",
+            f"• *Sensitive groups:* {sensitive}",
+        ]
+
+    text = "\n\n".join(line for line in lines if line)
+    return f"https://wa.me/?text={quote(text)}"

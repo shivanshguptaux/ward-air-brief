@@ -503,6 +503,18 @@
                       <span>{{ result.ai.citizen_advisory.sensitive_groups }}</span>
                     </li>
                   </ul>
+                  {% if result.whatsapp_url %}
+                    <div class="button-row">
+                      <a
+                        href="{{ result.whatsapp_url }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn--primary"
+                      >
+                        {{ 'WhatsApp पर भेजें (Share on WhatsApp)' if result.language == 'hi' else 'Share on WhatsApp' }}
+                      </a>
+                    </div>
+                  {% endif %}
                 </div>
               </div>
             </section>

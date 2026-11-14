@@ -27,6 +27,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from ai import HONEST_ERROR_MESSAGE, AIAnalysisError, generate_civic_brief
 from logic import (
     build_session_snapshot,
+    build_whatsapp_share_url,
     compute_delta,
     parse_and_analyse_table,
     verify_citations,
@@ -271,6 +272,10 @@ def analyse() -> tuple[str | Response, int] | str:
         "parsed": parsed,
         "delta": delta,
         "ai": verified_ai,
+        "whatsapp_url": build_whatsapp_share_url(
+            verified_ai.get("citizen_advisory", {}),
+            cleaned_inputs["language"],
+        ),
     }
 
     return _render_workspace(form_values=cleaned_inputs, result=result_bundle)
