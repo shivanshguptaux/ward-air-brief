@@ -155,6 +155,8 @@ def _parse_concentration(
 
     try:
         val = Decimal(num_str)
+        if not val.is_finite():  # NaN, sNaN and Infinity cannot be compared or averaged
+            raise InvalidOperation
     except InvalidOperation:
         flags.append({
             "row_id": row_id,

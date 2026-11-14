@@ -1,0 +1,18 @@
+# Prompts log
+
+How VayuBrief Bhopal was built, in order. Two agents worked at once under the rules in [`AGENTS.md`](../AGENTS.md): Antigravity (Planning Mode) on the app, and Claude Code on design, tests and docs. Skills named `/pw-…` live in [`.agents/skills/`](../.agents/skills/). The owner directed both agents and reviewed each step.
+
+| # | Agent | Prompt | What it produced | What the owner changed |
+|---|---|---|---|---|
+| 1 | Owner | Wrote `BRIEF.md` by hand from the challenge text, the warm-up report and news sources | The user (Ravi), the pain backed by data, the golden path, a feature for every ask, priorities | — |
+| 2 | Claude Code | "Set up git and a public GitHub repo, first commit" | `git init` on `main`, key scan, first commit, public repo | Picked the repo name `ward-air-brief` |
+| 3 | Antigravity | `/pw-build`: the golden path end to end with a stubbed Gemini response | `main.py`, `logic.py`, `validation.py`, `templates/`, `static/`, `sample_data.json`, with `ai.py` as a stub | — |
+| 4 | Claude Code | "Go through the prototype and assess it as a lead product designer: type and spacing scale, elevation, motion, contrast, taste, UX laws. The brief scrolls long with no navigation; maybe section tabs?" (with a visual reference) | A written assessment: tokens and contrast were sound; problems were 14 px body copy, nested boxes, red meaning both AQI and data errors, design notes in the UI copy, and a 6,612 px result with no navigation | Asked for a fully tokenised design system, a Google font, and progressive disclosure that doesn't hide things from non-technical users |
+| 5 | Claude Code | "You make them" | Tokenised CSS, Inter plus Noto Sans Devanagari, a brief split into four ARIA tabs with counts and "Next" links, segmented controls, a sticky Analyse bar, source chips that open the cited row, neutral data flags, focus moved to the brief or the first error | Approved; result went from 6,612 px to about 2,500 px |
+| 6 | Antigravity | `/pw-gemini`: replace the stub with real Gemini calls, fallback, honest error and cache, keeping the schema | `ai.py` with system instruction, `response_schema`, 20 s timeout, fallback model, 15-minute LRU cache, schema validation, structured logs | — |
+| 7 | Antigravity | `/pw-deploy` | Cloud Run service `ward-air-brief` | — |
+| 8 | Claude Code | "Everything ok from your end?" (live check) | Found that the session key was the hard-coded fallback in the public repo, and that the AI cache ignored the previous brief, so "since last brief" could be stale | Had both fixed: `FLASK_SECRET_KEY` from Secret Manager, comparison data added to the cache key |
+| 9 | Claude Code | `/pw-docs` | This log, `README.md` and `docs/submission.md`, written from the code and the live service | — |
+| 10 | Claude Code | `/pw-score` | Measured checks: 44 pass, 4 warnings, 1 fail (no tests); live keyboard, 360 px, 200% zoom, contrast and one real Gemini run all passed | Chose to add tests before the first submission |
+| 11 | Claude Code | `/pw-tests` | 197 pytest cases in `tests/` with Gemini faked, 98% coverage; found two bugs (`-nan` crashes the route, user text can close the prompt delimiter), pinned as strict `xfail` | Asked for both bugs to be fixed before committing |
+| 12 | Claude Code | "Fix bugs first" | `logic._parse_concentration` treats NaN and Infinity as unparseable; `ai._json_block` escapes `<` and `>` in prompt data. The two `xfail` tests became normal tests; 199 pass | — |

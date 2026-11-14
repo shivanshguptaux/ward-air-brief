@@ -207,10 +207,16 @@ def _build_user_prompt(
         f"- role: {role}\n"
         f"- language: {language} ({language_name})\n"
         f"- reading_level: {reading_level}\n\n"
-        f"<cleaned_data>\n{json.dumps(cleaned_payload, ensure_ascii=False, indent=2)}\n</cleaned_data>\n\n"
-        f"<data_flags>\n{json.dumps(parsed.get('flags', []), ensure_ascii=False, indent=2)}\n</data_flags>\n\n"
-        f"<comparison_delta>\n{json.dumps(delta, ensure_ascii=False, indent=2)}\n</comparison_delta>\n"
+        f"<cleaned_data>\n{_json_block(cleaned_payload)}\n</cleaned_data>\n\n"
+        f"<data_flags>\n{_json_block(parsed.get('flags', []))}\n</data_flags>\n\n"
+        f"<comparison_delta>\n{_json_block(delta)}\n</comparison_delta>\n"
     )
+
+
+def _json_block(value: Any) -> str:
+    """Serialise data for the prompt with < and > escaped, so user text cannot open or close a delimiter tag."""
+    text = json.dumps(value, ensure_ascii=False, indent=2)
+    return text.replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def validate_ai_schema(data: Any) -> dict[str, Any]:
