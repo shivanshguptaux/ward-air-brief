@@ -7,7 +7,7 @@ Turn a messy ward air quality sheet into a traceable brief, ranked local actions
 **Try it in 30 seconds**
 1. Open the live URL and press **This week · Ward 31**, then **Analyse sheet**.
 2. Read the lead line, then press any **Row** chip to jump to the reading it came from in **Data trust**.
-3. Open **Internal note** and press **Sign in** (demo account `ravi.ward31` / `bhopal-clean-air`, already filled in). Open **Citizen advisory** for the resident card.
+3. Open **Internal note** and press **Sign in** (demo account `ravi.ward31` / `bhopal-clean-air`, already filled in). Open **Citizen advisory** for the resident card and press **Share on WhatsApp** to send it.
 
 To see **Since last brief**, analyse **Last week · Ward 31** first, then **This week · Ward 31**.
 
@@ -27,7 +27,7 @@ Ravi, an assistant engineer for one Bhopal ward, gets a messy sheet from three m
 
 1. **Paste or upload** the sheet, and choose who is asking (ward officer, housing society, school), the language and the reading level.
 2. **The code cleans and flags.** It detects the delimiter, converts mg/m³ to µg/m³, and flags missing, negative, above-999 and stuck readings. Gemini then writes the brief from the cleaned rows and cites a row for every finding.
-3. **Ravi gets four tabs:** **Brief** (lead line, stations, hotspots, ranked actions, since last brief), **Data trust** (every flag and the cleaned table), **Internal note** (staff only, printable on A4) and **Citizen advisory** (a phone-sized card with lines for children, older adults and sensitive people).
+3. **Ravi gets four tabs:** **Brief** (lead line, stations, hotspots, ranked actions, since last brief), **Data trust** (every flag and the cleaned table), **Internal note** (staff only, printable on A4) and **Citizen advisory** (a phone-sized card with lines for children, older adults and sensitive people, shared to WhatsApp in one tap).
 
 ## How it works
 
@@ -35,7 +35,7 @@ Ravi, an assistant engineer for one Bhopal ward, gets a messy sheet from three m
 form → validation.py → logic.parse_and_analyse_table → logic.compute_delta → ai.generate_civic_brief (Gemini) → logic.verify_citations → templates/index.html
 ```
 
-**The AI decides, the code computes.** Gemini writes the language and makes the judgement calls: trend, likely causes, which actions fit the role, the note and the advisory. Everything numeric is plain Python in `logic.py`: parsing with `csv.Sniffer`, unit conversion, CPCB AQI per reading and per station, data flags and the change since the last brief. `verify_citations` drops any finding that cites a row the code didn't send, and forces low confidence on findings that rely on flagged rows. If nothing survives, the user sees an honest error instead of an unsupported brief.
+**The AI decides, the code computes.** Gemini writes the language and makes the judgement calls: trend, likely causes, which actions fit the role, the note and the advisory. Everything numeric is plain Python in `logic.py`: parsing with `csv.Sniffer`, unit conversion, CPCB AQI per reading and per station, data flags, the change since the last brief and the WhatsApp share link (`build_whatsapp_share_url`, a plain `wa.me` link with no API or tracking). `verify_citations` drops any finding that cites a row the code didn't send, and forces low confidence on findings that rely on flagged rows. If nothing survives, the user sees an honest error instead of an unsupported brief.
 
 **Fallback chain** (`ai.generate_civic_brief`)
 1. Identical request in the last 15 minutes: served from the in-memory LRU cache (64 entries).
@@ -62,7 +62,7 @@ form → validation.py → logic.parse_and_analyse_table → logic.compute_delta
 | Code quality | Routes, AI, deterministic logic and validation in separate modules; type hints and docstrings throughout; design system fully tokenised | `main.py`, `ai.py`, `logic.py`, `validation.py`, `static/styles.css` |
 | Security | Allowlisted role, language and level; 2,000-character table limit; 64 KB request cap; Jinja autoescape; `textContent` only in JS; CSP, nosniff, referrer and frame headers; 20 requests a minute per IP on `/analyse`; hashed staff password; signed session; secrets in Secret Manager; user data in delimiters and treated as data by the system instruction | `validation.py`, `main.py`, `ai.py`, `static/app.js` |
 | Efficiency | 15-minute LRU cache, 20 second timeout, compact row payload to Gemini, no build step, one small CSS and JS file | `ai.py`, `static/` |
-| Testing | 199 pytest cases, no network (Gemini replaced by a fake client), 98% line coverage of app code: parsing, units, flags, AQI boundaries, deltas, citation checks, validation, every route, fallback and honest error, cache, schema checks, prompt injection, rate limit, sign-in, security headers. Includes regression tests for two bugs the suite found and that were then fixed | `tests/` |
+| Testing | 204 pytest cases, no network (Gemini replaced by a fake client), 98% line coverage of app code: parsing, units, flags, AQI boundaries, deltas, citation checks, validation, every route, fallback and honest error, cache, schema checks, prompt injection, rate limit, sign-in, security headers. Includes regression tests for two bugs the suite found and that were then fixed | `tests/` |
 | Accessibility | WCAG 2.2 AA: skip link, landmarks, one h1, fieldsets with legends, hints and errors tied with `aria-describedby`, `aria-invalid`, `aria-live` status, focus moves to the brief or the first error, ARIA tabs with arrow keys, AQI always colour plus word plus number, 3:1 control borders, reduced motion, works at 360 px | `templates/index.html`, `static/styles.css`, `static/app.js` |
 | Google services | Gemini, Cloud Run, Cloud Build, Secret Manager, Cloud Logging, Google Fonts | table above |
 
@@ -88,7 +88,7 @@ The suite makes no network calls and uses no Gemini quota: `tests/conftest.py` s
 
 | File | Covers |
 |---|---|
-| `tests/test_logic.py` | CPCB breakpoints and category boundaries, header aliases, timestamps, mg→µg conversion, missing, negative, above-999 and stuck readings, delimiters, a 2,000-row table, deltas, session snapshot, citation checks |
+| `tests/test_logic.py` | CPCB breakpoints and category boundaries, header aliases, timestamps, mg→µg conversion, missing, negative, above-999 and stuck readings, delimiters, a 2,000-row table, deltas, session snapshot, citation checks, the WhatsApp share link |
 | `tests/test_validation.py` | Valid input, missing fields, the 2,000-character limit, allowlists, wrong types |
 | `tests/test_ai.py` | Request shape, fallback on 429, 503, timeout or invalid JSON, honest error when both fail or no key, cache hits, expiry and eviction, schema rejection, injection staying inside delimiters (user text cannot close a tag) |
 | `tests/test_routes.py` | Home, health, samples, 404, the analyse happy path and comparison, CSV upload, 400s, 413, 503 honest error, dropped citations, rate limit, staff sign-in, security headers |
@@ -112,7 +112,8 @@ gcloud run services logs read ward-air-brief --project pw-bhopal-1114 --region a
 - The free-tier key allows about 20 Gemini requests a day; after that, users see the honest error.
 - The cache and the rate limit live in memory per instance and reset on restart.
 - Tables are capped at 2,000 characters, about 40 rows.
-- Not built: audio playback of the advisory, WhatsApp sharing, maps or live sensor feeds.
+- WhatsApp sharing opens WhatsApp with the advisory text filled in; the user still picks who to send it to.
+- Not built: audio playback of the advisory, maps or live sensor feeds.
 
 ## How it was built
 

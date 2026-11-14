@@ -270,3 +270,11 @@ def test_secret_key_is_not_a_fixed_string_in_code() -> None:
     source = Path(main.__file__).read_text(encoding="utf-8")
     assert "pw-bhopal-ward31-civic-session-key" not in source
     assert main.app.secret_key and len(str(main.app.secret_key)) >= 32
+
+
+def test_advisory_has_a_whatsapp_share_link(client, fake_gemini) -> None:
+    fake_gemini()
+    page = _html(client.post("/analyse", data=FORM))
+    assert 'href="https://wa.me/?text=' in page
+    assert 'rel="noopener noreferrer"' in page
+    assert "Share on WhatsApp" in page

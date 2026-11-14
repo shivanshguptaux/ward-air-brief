@@ -16,3 +16,5 @@ How VayuBrief Bhopal was built, in order. Two agents worked at once under the ru
 | 10 | Claude Code | `/pw-score` | Measured checks: 44 pass, 4 warnings, 1 fail (no tests); live keyboard, 360 px, 200% zoom, contrast and one real Gemini run all passed | Chose to add tests before the first submission |
 | 11 | Claude Code | `/pw-tests` | 197 pytest cases in `tests/` with Gemini faked, 98% coverage; found two bugs (`-nan` crashes the route, user text can close the prompt delimiter), pinned as strict `xfail` | Asked for both bugs to be fixed before committing |
 | 12 | Claude Code | "Fix bugs first" | `logic._parse_concentration` treats NaN and Infinity as unparseable; `ai._json_block` escapes `<` and `>` in prompt data. The two `xfail` tests became normal tests; 199 pass | — |
+| 13 | Antigravity | `/pw-xfactor`: build "Share on WhatsApp" for the citizen advisory | `logic.build_whatsapp_share_url` (a `wa.me` link in English or Hindi) and a share button on the advisory card | — |
+| 14 | Claude Code | "Any changes on the form or should I submit?" | Tests for the share link (204 pass), README updated so it no longer lists WhatsApp as not built | — |

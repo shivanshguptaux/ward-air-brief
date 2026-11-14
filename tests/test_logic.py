@@ -404,3 +404,48 @@ def test_infinity_is_unparseable_not_a_spike() -> None:
     value, flags, _ = _parse("Infinity")
     assert value is None
     assert flags[0]["type"] == "unparseable"
+
+
+# ---------- build_whatsapp_share_url ----------
+
+ADVISORY = {
+    "headline": "Dusty air near TT Nagar & Bhanpur",
+    "general_advice": "Keep windows closed after 6 pm.",
+    "children": "Keep children indoors.",
+    "older_adults": "Walk after 9 am.",
+    "sensitive_groups": "Keep inhalers handy.",
+}
+
+
+def _share_text(url: str) -> str:
+    from urllib.parse import parse_qs, urlparse
+
+    parts = urlparse(url)
+    assert (parts.scheme, parts.netloc, parts.path) == ("https", "wa.me", "/")
+    return parse_qs(parts.query)["text"][0]
+
+
+def test_whatsapp_link_carries_the_whole_english_advisory() -> None:
+    text = _share_text(logic.build_whatsapp_share_url(ADVISORY, "en"))
+    assert text.startswith("*Air Advisory · Bhopal: Dusty air near TT Nagar & Bhanpur*")
+    for value in ADVISORY.values():
+        assert value in text
+    assert "*Children:*" in text and "*Sensitive groups:*" in text
+
+
+def test_whatsapp_link_uses_hindi_labels() -> None:
+    text = _share_text(logic.build_whatsapp_share_url(ADVISORY, "hi"))
+    assert "वायु सलाह · भोपाल" in text
+    assert "बच्चों के लिए" in text
+
+
+def test_whatsapp_link_is_fully_encoded() -> None:
+    url = logic.build_whatsapp_share_url(ADVISORY, "en")
+    query = url.split("?text=", 1)[1]
+    assert " " not in query and "&" not in query and "\n" not in query
+
+
+def test_whatsapp_link_skips_empty_lines() -> None:
+    text = _share_text(logic.build_whatsapp_share_url({"headline": "Only a headline"}, "en"))
+    assert "Only a headline" in text
+    assert "\n\n\n\n" not in text
