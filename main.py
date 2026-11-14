@@ -109,12 +109,16 @@ def _apply_headers_and_log(response: Response) -> Response:
 
     start_t = request.environ.get("_start_t", time.monotonic())
     duration_ms = round((time.monotonic() - start_t) * 1000, 2)
+    ai_meta = request.environ.get("_ai_meta", {})
     log_entry = {
         "severity": "INFO" if response.status_code < 400 else "WARNING",
+        "route": request.path,
         "method": request.method,
-        "path": request.path,
         "status": response.status_code,
-        "duration_ms": duration_ms,
+        "latency_ms": duration_ms,
+        "model": ai_meta.get("model"),
+        "cache_hit": ai_meta.get("cache_hit", False),
+        "fallback_used": ai_meta.get("fallback_used", False),
     }
     print(json.dumps(log_entry), flush=True)
     return response
@@ -228,14 +232,21 @@ def analyse() -> tuple[str | Response, int] | str:
     delta = compute_delta(parsed["stations"], previous_brief)
 
     try:
-        raw_ai = generate_civic_brief(
+        ai_out = generate_civic_brief(
             parsed=parsed,
             delta=delta,
             role=cleaned_inputs["role"],
             language=cleaned_inputs["language"],
             reading_level=cleaned_inputs["reading_level"],
         )
+        if isinstance(ai_out, tuple) and len(ai_out) == 2:
+            raw_ai, ai_meta = ai_out
+            request.environ["_ai_meta"] = ai_meta
+        else:
+            raw_ai = ai_out
         verified_ai = verify_citations(raw_ai, parsed)
+        if not verified_ai.get("hotspots") or not verified_ai.get("actions"):
+            raise AIAnalysisError(HONEST_ERROR_MESSAGE)
     except AIAnalysisError as exc:
         return _render_workspace(
             form_values=cleaned_inputs,
