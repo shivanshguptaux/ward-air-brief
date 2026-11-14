@@ -58,7 +58,7 @@ form → validation.py → logic.parse_and_analyse_table → logic.compute_delta
 
 | Area | What was done | Evidence |
 |---|---|---|
-| Problem statement alignment | Every ask in the challenge maps to one visible feature: messy input, flags, role-based actions, row citations, since last brief, note, bilingual advisory at two reading levels, care groups | `BRIEF.md`, `templates/index.html` |
+| Problem statement alignment | Every ask in the challenge maps to one visible feature: messy input, flags, role-based actions, row citations, since last brief, note, bilingual advisory at two reading levels, care groups; the advisory goes to residents through WhatsApp, where they already are | `BRIEF.md`, `templates/index.html`, `logic.py` |
 | Code quality | Routes, AI, deterministic logic and validation in separate modules; type hints and docstrings throughout; design system fully tokenised | `main.py`, `ai.py`, `logic.py`, `validation.py`, `static/styles.css` |
 | Security | Allowlisted role, language and level; 2,000-character table limit; 64 KB request cap; Jinja autoescape; `textContent` only in JS; CSP, nosniff, referrer and frame headers; 20 requests a minute per IP on `/analyse`; hashed staff password; signed session; secrets in Secret Manager; user data in delimiters and treated as data by the system instruction | `validation.py`, `main.py`, `ai.py`, `static/app.js` |
 | Efficiency | 15-minute LRU cache, 20 second timeout, compact row payload to Gemini, no build step, one small CSS and JS file | `ai.py`, `static/` |
@@ -117,4 +117,4 @@ gcloud run services logs read ward-air-brief --project pw-bhopal-1114 --region a
 
 ## How it was built
 
-A solo three-hour build for Google PromptWars. Antigravity (Planning Mode) built the app: `main.py`, `ai.py`, `logic.py`, `validation.py`. Claude Code did the UX and visual pass on `templates/` and `static/`, the README and `docs/`. Both agents followed the rules in [`AGENTS.md`](AGENTS.md) and the skills in [`.agents/skills/`](.agents/skills/). The prompts are logged in [`docs/prompts.md`](docs/prompts.md).
+A solo three-hour build for Google PromptWars, directed by a product designer. Antigravity (Planning Mode) built the app (`main.py`, `ai.py`, `logic.py`, `validation.py`) and the WhatsApp share. Claude Code did the UX and visual pass on `templates/` and `static/`, wrote `tests/` (which found and fixed two bugs), checked the live service, and wrote the README and `docs/`. Both agents followed the rules in [`AGENTS.md`](AGENTS.md) and the skills in [`.agents/skills/`](.agents/skills/). The prompts are logged in [`docs/prompts.md`](docs/prompts.md).

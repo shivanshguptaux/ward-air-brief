@@ -18,3 +18,4 @@ How VayuBrief Bhopal was built, in order. Two agents worked at once under the ru
 | 12 | Claude Code | "Fix bugs first" | `logic._parse_concentration` treats NaN and Infinity as unparseable; `ai._json_block` escapes `<` and `>` in prompt data. The two `xfail` tests became normal tests; 199 pass | — |
 | 13 | Antigravity | `/pw-xfactor`: build "Share on WhatsApp" for the citizen advisory | `logic.build_whatsapp_share_url` (a `wa.me` link in English or Hindi) and a share button on the advisory card | — |
 | 14 | Claude Code | "Any changes on the form or should I submit?" | Tests for the share link (204 pass), README updated so it no longer lists WhatsApp as not built | — |
+| 15 | Claude Code | `/pw-docs final` | Re-checked every README claim against the code, the tests (204 pass, 98% coverage) and the live service (revision 4); updated "How it was built" and the alignment row | — |
