@@ -1,0 +1,22 @@
+.gcloudignore
+.git/
+.gitignore
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+.DS_Store
+.pytest_cache/
+tests/
+docs/
+.agents/
+.claude/
+AGENTS.md
+CLAUDE.md
+BRIEF.md
+README.md
+requirements-dev.txt
+
+# Owner notes, never committed or deployed
+06-skills.md

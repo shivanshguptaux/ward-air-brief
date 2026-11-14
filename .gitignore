@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+.DS_Store
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Owner notes, never committed or deployed
+06-skills.md
