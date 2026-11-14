@@ -10,3 +10,6 @@ htmlcov/
 
 # Owner notes, never committed or deployed
 06-skills.md
+
+# Local preview config for the Claude desktop app
+.claude/launch.json

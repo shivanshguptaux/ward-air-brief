@@ -1,0 +1,84 @@
+{
+  "examples": [
+    {
+      "id": "week2",
+      "label": "This week · Ward 31",
+      "description": "Messy 3-station ward sheet with mg/m³ unit mix-up, missing cell, >999 spike, and flatlined readings.",
+      "role": "ward_officer",
+      "language": "en",
+      "reading_level": "simple",
+      "raw_table": "Station_Name,Date_Time,PM2.5,PM10,Unit,Notes\nTT Nagar,2026-11-11 08:00,192,318,ug/m3,Smart City road digging\nTT Nagar,2026-11-11 12:00,0.210,0.340,mg/m3,Reported in mg/m3 by contractor\nTT Nagar,2026-11-11 18:00,228,365,ug/m3,Evening traffic + dust\nTT Nagar,2026-11-11 22:00,246,390,ug/m3,Calm wind night buildup\nBhanpur,2026-11-11 08:00,168,275,ug/m3,Near landfill perimeter\nBhanpur,2026-11-11 12:00,,260,ug/m3,Power cut - PM2.5 missing\nBhanpur,2026-11-11 18:00,1240,410,ug/m3,Sensor glitch >999 spike\nBhanpur,2026-11-11 22:00,215,330,ug/m3,Night waste burning smoke\nKolar Road,2026-11-11 08:00,72,138,ug/m3,Residential corridor\nKolar Road,2026-11-11 10:00,68,132,ug/m3,Normal flow\nKolar Road,2026-11-11 12:00,68,132,ug/m3,Check sensor\nKolar Road,2026-11-11 14:00,68,132,ug/m3,Stuck value\nKolar Road,2026-11-11 16:00,68,132,ug/m3,Stuck 4x in a row"
+    },
+    {
+      "id": "week1",
+      "label": "Last week · Ward 31",
+      "description": "Previous week's sheet (semicolon-separated) to test 'Since last brief' comparison first.",
+      "role": "ward_officer",
+      "language": "en",
+      "reading_level": "simple",
+      "raw_table": "Station_Name;Date_Time;PM2.5;PM10;Unit;Notes\nTT Nagar;2026-11-04 08:00;145;240;ug/m3;Routine traffic\nTT Nagar;2026-11-04 12:00;152;255;ug/m3;Midday\nTT Nagar;2026-11-04 18:00;165;270;ug/m3;Evening peak\nBhanpur;2026-11-04 08:00;175;290;ug/m3;Morning smoke\nBhanpur;2026-11-04 12:00;180;295;ug/m3;Landfill truck movement\nBhanpur;2026-11-04 18:00;190;305;ug/m3;Evening\nKolar Road;2026-11-04 08:00;82;155;ug/m3;School rush\nKolar Road;2026-11-04 12:00;78;148;ug/m3;Midday\nKolar Road;2026-11-04 18:00;84;160;ug/m3;Evening"
+    },
+    {
+      "id": "school_morning",
+      "label": "School, morning · Hindi",
+      "description": "Tab-separated morning readings with negative error and mg/m³ conversion.",
+      "role": "school",
+      "language": "hi",
+      "reading_level": "simple",
+      "raw_table": "Location\tTime\tPM2_5\tPM_10\tUnits\tRemarks\nTT Nagar\t2026-11-12 07:00\t235\t370\tug/m3\tMorning inversion before assembly\nTT Nagar\t2026-11-12 09:00\t0.205\t0.330\tmg/m3\tSchool gate monitor\nArera Colony\t2026-11-12 07:00\t118\t195\tug/m3\tLeaf burning near park\nArera Colony\t2026-11-12 09:00\t-12\t188\tug/m3\tNegative calibration error\nKolar Road\t2026-11-12 07:00\t74\t142\tug/m3\tLight breeze"
+    }
+  ],
+  "cpcb_reference": {
+    "source": "Central Pollution Control Board (CPCB) National Air Quality Index (NAQI) Breakpoints (24-hr µg/m³)",
+    "categories": [
+      {
+        "name": "Good",
+        "aqi_min": 0,
+        "aqi_max": 50,
+        "pm25_max": 30,
+        "pm10_max": 50,
+        "token": "good"
+      },
+      {
+        "name": "Satisfactory",
+        "aqi_min": 51,
+        "aqi_max": 100,
+        "pm25_max": 60,
+        "pm10_max": 100,
+        "token": "satisfactory"
+      },
+      {
+        "name": "Moderate",
+        "aqi_min": 101,
+        "aqi_max": 200,
+        "pm25_max": 90,
+        "pm10_max": 250,
+        "token": "moderate"
+      },
+      {
+        "name": "Poor",
+        "aqi_min": 201,
+        "aqi_max": 300,
+        "pm25_max": 120,
+        "pm10_max": 350,
+        "token": "poor"
+      },
+      {
+        "name": "Very Poor",
+        "aqi_min": 301,
+        "aqi_max": 400,
+        "pm25_max": 250,
+        "pm10_max": 430,
+        "token": "very-poor"
+      },
+      {
+        "name": "Severe",
+        "aqi_min": 401,
+        "aqi_max": 500,
+        "pm25_max": 999,
+        "pm10_max": 999,
+        "token": "severe"
+      }
+    ]
+  }
+}

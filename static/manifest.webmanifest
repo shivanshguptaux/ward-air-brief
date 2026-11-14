@@ -1,0 +1,16 @@
+{
+  "name": "VayuBrief Bhopal — Ward Air Quality Civic Intelligence",
+  "short_name": "VayuBrief",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAFAF8",
+  "theme_color": "#0F6E66",
+  "icons": [
+    {
+      "src": "/static/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
