@@ -27,6 +27,7 @@ from werkzeug.exceptions import InternalServerError, RequestEntityTooLarge
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from ai import HONEST_ERROR_MESSAGE, AIAnalysisError, generate_civic_brief
+from compression import init_compression
 from logic import (
     build_session_snapshot,
     build_whatsapp_share_url,
@@ -49,6 +50,7 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("K_SERVICE"))
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+init_compression(app)
 
 STAFF_DEMO_USERNAME = "ravi.ward31"
 STAFF_DEMO_PASSWORD_DISPLAY = "bhopal-clean-air"

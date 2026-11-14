@@ -1,6 +1,6 @@
 # Submission
 
-Fields in the order the form asks for them. Latest: submission 2.
+Fields in the order the form asks for them. Latest: submission 3.
 
 ## Public GitHub Repository Link
 
@@ -16,7 +16,7 @@ https://vayubrief-64na6zdzrq-el.a.run.app
 
 ## Describe the changes/updates made in the deployed version
 
-Since submission 1 (93.75). Efficiency: Gemini runs with a low thinking level and a 2,048-token output cap (faster replies inside the 20 s timeout), one reused client, compact JSON prompt, sample data loaded once, static files cached for an hour, rate-limit entries pruned once a minute. Security: HSTS and Permissions-Policy headers; HttpOnly, Secure, SameSite=Lax session cookie; cross-site POSTs rejected; staff sign-in rate-limited; rate limit keyed on the address Cloud Run sees; prompt data escapes < and >. Accessibility: every radio has an id and label, invalid groups get aria-invalid and an outline, Hindi text is marked lang="hi", the WhatsApp link announces a new tab, higher placeholder contrast, aligned cards. Prompt: the lead line names the worst station, its figure and the likely cause. Testing: 218 tests, 97% coverage, no network. Shorter link. Try "This week · Ward 31", then "Analyse sheet". Staff sign-in: ravi.ward31 / bhopal-clean-air.
+Since submission 1 (93.75; submission 2 scored 95.5). Efficiency: Gemini runs with a low thinking level and a 2,048-token output cap (faster replies inside the 20 s timeout), one reused client, compact JSON prompt, sample data loaded once, static files cached for an hour, HTML, CSS and JS gzipped, rate-limit entries pruned once a minute. Security: HSTS and Permissions-Policy headers; HttpOnly, Secure, SameSite=Lax session cookie; cross-site POSTs rejected; staff sign-in rate-limited; rate limit keyed on the address Cloud Run sees; prompt data escapes < and >. Accessibility: every radio has an id and label, invalid groups get aria-invalid and an outline, Hindi text is marked lang="hi", the WhatsApp link announces a new tab, higher placeholder contrast, aligned cards. Prompt: the lead line names the worst station, its figure and the likely cause. Testing: 227 tests, 97% coverage, no network. Shorter link. Try "This week · Ward 31", then "Analyse sheet". Staff sign-in: ravi.ward31 / bhopal-clean-air.
 
 ## Mention the Gen AI services utilized in the submission, and where did you utilize it?
 

@@ -26,3 +26,5 @@ How VayuBrief Bhopal was built, in order. Two agents worked at once under the ru
 | 20 | Claude Code | `/pw-audit` | About 61/70; five ranked fixes under 10 minutes each, with prompts for each agent | Asked for one combined prompt for Antigravity and fix 3 in parallel |
 | 21 | Antigravity | Combined prompt from the audit | Low thinking level and 2,048-token cap, lead-line rule, rate-limit pruning once a minute, dead branch removed, sign-in rate limit, cross-site POST rejection | — |
 | 22 | Claude Code | Fix 3, then "do everything and deploy" | Hindi text tagged `lang="hi"`; tests for every change above (218 pass); README and form fields updated; deployed and scored | — |
+| 23 | Owner | Submission 2 | Scored 95.5: Code quality, Security, Testing and Accessibility 100; Problem alignment 95; Efficiency 80 | Asked for a quick fix |
+| 24 | Claude Code | "Quick fix?" then "Gzip only" | Found the live site sent HTML, CSS and JS uncompressed; added `compression.py` (standard-library gzip) with 9 tests (227 pass); deployed and scored | Chose gzip only and skipped a third language as too risky for the last attempt |
