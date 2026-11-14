@@ -319,6 +319,11 @@ code {
   margin-top: var(--space-4);
 }
 
+/* A hidden card (the loading state) must not push the next one down */
+.panel[hidden] + .panel {
+  margin-top: 0;
+}
+
 .panel__header {
   display: grid;
   gap: var(--space-1);
@@ -490,6 +495,11 @@ code {
   font: inherit;
 }
 
+.input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
 .input--mono {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
@@ -552,6 +562,10 @@ code {
   padding: var(--space-1);
   border-radius: var(--radius-control);
   background: var(--surface-sunken);
+}
+
+.segmented:has(input[aria-invalid="true"]) {
+  box-shadow: inset 0 0 0 var(--border-width-strong) var(--danger);
 }
 
 .segmented__option {
@@ -626,9 +640,6 @@ code {
   justify-items: start;
 }
 
-.state--empty {
-  padding: var(--space-6);
-}
 
 .state--error {
   border-color: var(--danger);

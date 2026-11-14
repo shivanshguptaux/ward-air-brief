@@ -6,7 +6,7 @@ https://github.com/shivanshguptaux/ward-air-brief
 
 ## Deployed Prototype Link
 
-https://ward-air-brief-64na6zdzrq-el.a.run.app
+https://vayubrief-64na6zdzrq-el.a.run.app
 
 ## Project Demo Video Submission
 
@@ -14,7 +14,11 @@ https://ward-air-brief-64na6zdzrq-el.a.run.app
 
 ## Describe the changes/updates made in the deployed version
 
-VayuBrief Bhopal turns a ward's messy weekly air quality sheet into a traceable brief. Paste or upload a table (any delimiter, mixed units, gaps), pick who is asking (ward officer, housing society, school), English or Hindi, and a simple or standard reading level. The code cleans the table, converts mg/m³ to µg/m³, and flags missing, impossible and stuck readings. Gemini writes the lead line, hotspots and three ranked actions for that role, each citing its source rows; findings that rely on flagged data are marked low confidence. Results are in four tabs: Brief (with what changed since the last brief), Data trust, a printable internal note behind a staff sign-in, and a phone-sized citizen advisory with lines for children, older adults and sensitive people, which can be shared on WhatsApp in one tap. Accessible to WCAG 2.2 AA, 204 tests. Try: press "This week · Ward 31", then "Analyse sheet". Staff sign-in: ravi.ward31 / bhopal-clean-air.
+VayuBrief Bhopal turns a ward's messy weekly air quality sheet into a traceable brief. Paste or upload a table (any delimiter, mixed units, gaps), pick who is asking (ward officer, housing society, school), English or Hindi, and a simple or standard reading level. The code cleans the table, converts mg/m³ to µg/m³, and flags missing, impossible and stuck readings. Gemini writes the lead line, hotspots and three ranked actions for that role, each citing its source rows; findings that rely on flagged data are marked low confidence. Results are in four tabs: Brief (with what changed since the last brief), Data trust, a printable internal note behind a staff sign-in, and a phone-sized citizen advisory with lines for children, older adults and sensitive people, which can be shared on WhatsApp in one tap. Accessible to WCAG 2.2 AA, 207 tests. Try: press "This week · Ward 31", then "Analyse sheet". Staff sign-in: ravi.ward31 / bhopal-clean-air.
+
+## Changes since submission 1 (paste into "Describe the changes" for submission 2)
+
+Security: HSTS and Permissions-Policy headers; session cookie is HttpOnly, Secure and SameSite=Lax; the rate limit uses the address Cloud Run sees, so a fake X-Forwarded-For cannot dodge it; prompt data escapes < and >, so pasted text cannot break out of its delimiters. Efficiency: one reused Gemini client, compact JSON prompt (fewer tokens), sample data loaded once at startup, static files cached for an hour, stale rate-limit entries pruned. Accessibility: every radio has an id and label, invalid groups get aria-invalid and a visible outline, the WhatsApp link announces it opens a new tab, higher placeholder contrast, aligned cards. Testing: 207 tests, 98% coverage, no network. New shorter link. Try: press "This week · Ward 31", then "Analyse sheet". Staff sign-in: ravi.ward31 / bhopal-clean-air.
 
 ## Mention the Gen AI services utilized in the submission, and where did you utilize it?
 

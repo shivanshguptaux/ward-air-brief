@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import sys
 import time
 from collections import defaultdict, deque
 from datetime import UTC, datetime
@@ -21,7 +22,7 @@ from flask import (
     session,
     url_for,
 )
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import InternalServerError, RequestEntityTooLarge
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from ai import HONEST_ERROR_MESSAGE, AIAnalysisError, generate_civic_brief
@@ -42,30 +43,33 @@ from validation import (
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # 64 KB cap
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 3600
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("K_SERVICE"))
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
 
-# Demo staff credentials for the internal briefing note (shown on the sign-in panel and README)
 STAFF_DEMO_USERNAME = "ravi.ward31"
 STAFF_DEMO_PASSWORD_DISPLAY = "bhopal-clean-air"
 STAFF_PASSWORD_HASH = generate_password_hash(STAFF_DEMO_PASSWORD_DISPLAY)
 
-# Rate limit: 20 requests per minute per IP on AI routes
 RATE_LIMIT_MAX = 20
 RATE_LIMIT_WINDOW_SEC = 60.0
 _ip_requests: dict[str, deque[float]] = defaultdict(deque)
-
 SAMPLE_DATA_PATH = Path(__file__).parent / "sample_data.json"
+SAMPLE_DATA: dict[str, Any] = json.loads(SAMPLE_DATA_PATH.read_text(encoding="utf-8"))
 
 
 def _load_sample_data() -> dict[str, Any]:
-    """Load example inputs and CPCB reference data from sample_data.json."""
-    with SAMPLE_DATA_PATH.open(encoding="utf-8") as fh:
-        return json.load(fh)
+    """Return example inputs and CPCB reference data loaded at startup."""
+    return SAMPLE_DATA
 
 
 def _check_rate_limit(ip: str) -> bool:
-    """Return True if the IP is within the 20 req/min limit."""
+    """Return True if the IP is within the 20 req/min limit, pruning stale entries."""
     now = time.monotonic()
+    for stale_ip in [k for k, q in _ip_requests.items() if not q or (now - q[-1]) > RATE_LIMIT_WINDOW_SEC]:
+        _ip_requests.pop(stale_ip, None)
     bucket = _ip_requests[ip]
     while bucket and (now - bucket[0]) > RATE_LIMIT_WINDOW_SEC:
         bucket.popleft()
@@ -76,11 +80,9 @@ def _check_rate_limit(ip: str) -> bool:
 
 
 def _client_ip() -> str:
-    """Extract client IP safely behind Cloud Run proxy."""
+    """Extract client IP safely behind Cloud Run proxy (last X-Forwarded-For entry)."""
     forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.remote_addr or "127.0.0.1"
+    return forwarded.split(",")[-1].strip() if forwarded else (request.remote_addr or "127.0.0.1")
 
 
 @app.before_request
@@ -99,6 +101,7 @@ def _apply_headers_and_log(response: Response) -> Response:
         "img-src 'self' data:; "
         "media-src 'self' blob:; "
         "connect-src 'self'; "
+        "object-src 'none'; "
         "frame-ancestors 'none'; "
         "base-uri 'self'; "
         "form-action 'self'"
@@ -106,51 +109,48 @@ def _apply_headers_and_log(response: Response) -> Response:
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     start_t = request.environ.get("_start_t", time.monotonic())
-    duration_ms = round((time.monotonic() - start_t) * 1000, 2)
     ai_meta = request.environ.get("_ai_meta", {})
     log_entry = {
         "severity": "INFO" if response.status_code < 400 else "WARNING",
         "route": request.path,
         "method": request.method,
         "status": response.status_code,
-        "latency_ms": duration_ms,
+        "latency_ms": round((time.monotonic() - start_t) * 1000, 2),
         "model": ai_meta.get("model"),
         "cache_hit": ai_meta.get("cache_hit", False),
         "fallback_used": ai_meta.get("fallback_used", False),
     }
-    print(json.dumps(log_entry), flush=True)
+    sys.stdout.write(json.dumps(log_entry) + "\n")
+    sys.stdout.flush()
     return response
 
 
 @app.errorhandler(RequestEntityTooLarge)
-def _handle_too_large(_err: RequestEntityTooLarge) -> tuple[Response, int]:
+def _handle_too_large(_err: RequestEntityTooLarge) -> tuple[Response | str, int]:
     msg = "Uploaded file or request exceeds the 64 KB limit. Please upload a smaller CSV snippet."
     if request.accept_mimetypes.best == "application/json" or request.is_json:
         return jsonify({"ok": False, "error": msg}), 413
     return _render_workspace(general_error=msg), 413
 
 
-def _render_workspace(
-    *,
-    form_values: dict[str, str] | None = None,
-    field_errors: dict[str, str] | None = None,
-    general_error: str | None = None,
-    result: dict[str, Any] | None = None,
-    login_error: str | None = None,
-) -> str:
+@app.errorhandler(InternalServerError)
+def _handle_internal_error(_err: InternalServerError) -> tuple[Response | str, int]:
+    """Never expose stack traces on 500 errors."""
+    if request.accept_mimetypes.best == "application/json" or request.is_json:
+        return jsonify({"ok": False, "error": HONEST_ERROR_MESSAGE}), 500
+    return _render_workspace(general_error=HONEST_ERROR_MESSAGE), 500
+
+
+def _render_workspace(*, form_values: dict[str, str] | None = None, field_errors: dict[str, str] | None = None, general_error: str | None = None, result: dict[str, Any] | None = None, login_error: str | None = None) -> str:
     """Render the main two-pane workspace template with current state."""
     samples = _load_sample_data()
-    defaults = {
-        "raw_table": "",
-        "role": "ward_officer",
-        "language": "en",
-        "reading_level": "simple",
-    }
+    defaults = {"raw_table": "", "role": "ward_officer", "language": "en", "reading_level": "simple"}
     if form_values:
         defaults.update(form_values)
-
     return render_template(
         "index.html",
         examples=samples.get("examples", []),
@@ -186,8 +186,7 @@ def index() -> str:
 @app.get("/samples/<sample_id>")
 def get_sample(sample_id: str) -> tuple[Response, int]:
     """Return an example input dataset by ID for one-tap loading."""
-    samples = _load_sample_data()
-    for item in samples.get("examples", []):
+    for item in _load_sample_data().get("examples", []):
         if item.get("id") == sample_id:
             return jsonify({"ok": True, "sample": item}), 200
     return jsonify({"ok": False, "error": "Example not found."}), 404
@@ -197,8 +196,7 @@ def get_sample(sample_id: str) -> tuple[Response, int]:
 def analyse() -> tuple[str | Response, int] | str:
     """Validate input, clean data, compare with previous session brief, and run Gemini."""
     if not _check_rate_limit(_client_ip()):
-        msg = "Too many requests from this address. Please wait a minute and try again."
-        return _render_workspace(general_error=msg), 429
+        return _render_workspace(general_error="Too many requests from this address. Please wait a minute and try again."), 429
 
     raw_table = request.form.get("raw_table", "")
     uploaded = request.files.get("csv_file")
@@ -206,9 +204,7 @@ def analyse() -> tuple[str | Response, int] | str:
         try:
             raw_table = uploaded.read(64 * 1024).decode("utf-8-sig", errors="replace")
         except (OSError, UnicodeError):
-            return _render_workspace(
-                field_errors={"raw_table": "Could not read the uploaded CSV file as text."}
-            ), 400
+            return _render_workspace(field_errors={"raw_table": "Could not read the uploaded CSV file as text."}), 400
 
     cleaned_inputs, field_errors = validate_analysis_input(
         raw_table=raw_table,
@@ -216,21 +212,15 @@ def analyse() -> tuple[str | Response, int] | str:
         language=request.form.get("language", "en"),
         reading_level=request.form.get("reading_level", "simple"),
     )
-
     if field_errors:
         return _render_workspace(form_values=cleaned_inputs, field_errors=field_errors), 400
 
     try:
         parsed = parse_and_analyse_table(cleaned_inputs["raw_table"])
     except ValueError as exc:
-        return _render_workspace(
-            form_values=cleaned_inputs,
-            field_errors={"raw_table": str(exc)},
-        ), 400
+        return _render_workspace(form_values=cleaned_inputs, field_errors={"raw_table": str(exc)}), 400
 
-    previous_brief = session.get("previous_brief")
-    delta = compute_delta(parsed["stations"], previous_brief)
-
+    delta = compute_delta(parsed["stations"], session.get("previous_brief"))
     try:
         ai_out = generate_civic_brief(
             parsed=parsed,
@@ -248,15 +238,9 @@ def analyse() -> tuple[str | Response, int] | str:
         if not verified_ai.get("hotspots") or not verified_ai.get("actions"):
             raise AIAnalysisError(HONEST_ERROR_MESSAGE)
     except AIAnalysisError as exc:
-        return _render_workspace(
-            form_values=cleaned_inputs,
-            general_error=str(exc) or HONEST_ERROR_MESSAGE,
-        ), 503
+        return _render_workspace(form_values=cleaned_inputs, general_error=str(exc) or HONEST_ERROR_MESSAGE), 503
     except (RuntimeError, ValueError, KeyError, TypeError):
-        return _render_workspace(
-            form_values=cleaned_inputs,
-            general_error=HONEST_ERROR_MESSAGE,
-        ), 503
+        return _render_workspace(form_values=cleaned_inputs, general_error=HONEST_ERROR_MESSAGE), 503
 
     now_label = datetime.now(UTC).strftime("%d %b %Y %H:%M UTC")
     session["previous_brief"] = build_session_snapshot(parsed, now_label)
@@ -272,21 +256,16 @@ def analyse() -> tuple[str | Response, int] | str:
         "parsed": parsed,
         "delta": delta,
         "ai": verified_ai,
-        "whatsapp_url": build_whatsapp_share_url(
-            verified_ai.get("citizen_advisory", {}),
-            cleaned_inputs["language"],
-        ),
+        "whatsapp_url": build_whatsapp_share_url(verified_ai.get("citizen_advisory", {}), cleaned_inputs["language"]),
     }
-
     return _render_workspace(form_values=cleaned_inputs, result=result_bundle)
 
 
 @app.post("/staff-login")
 def staff_login() -> Response:
     """Verify staff credentials with werkzeug.security hash for the internal note."""
-    username = (request.form.get("username") or "").strip()
-    password = request.form.get("password") or ""
-
+    username = (request.form.get("username") or "").strip()[:120]
+    password = (request.form.get("password") or "")[:120]
     if username == STAFF_DEMO_USERNAME and check_password_hash(STAFF_PASSWORD_HASH, password):
         session["is_staff"] = True
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":

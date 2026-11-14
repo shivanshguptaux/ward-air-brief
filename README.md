@@ -2,7 +2,7 @@
 
 Turn a messy ward air quality sheet into a traceable brief, ranked local actions, an internal note and a citizen advisory in English or Hindi.
 
-**Live:** https://ward-air-brief-64na6zdzrq-el.a.run.app
+**Live:** https://vayubrief-64na6zdzrq-el.a.run.app
 
 **Try it in 30 seconds**
 1. Open the live URL and press **This week · Ward 31**, then **Analyse sheet**.
@@ -51,7 +51,7 @@ form → validation.py → logic.parse_and_analyse_table → logic.compute_delta
 | Cloud Run | Hosts the app with gunicorn, max 2 instances | `Procfile`, deploy command below |
 | Cloud Build | Builds the container from source on each deploy | `gcloud run deploy --source .` |
 | Secret Manager | `GEMINI_API_KEY` and `FLASK_SECRET_KEY`, never in code | `--set-secrets` in the deploy command |
-| Cloud Logging | One structured JSON line per request: route, status, latency, model, cache hit, fallback used. No user text, no keys | `main.py` (`_apply_headers_and_log`) |
+| Cloud Logging | One structured JSON line per request on stdout: route, status, latency, model, cache hit, fallback used. No user text, no keys | `main.py` (`_apply_headers_and_log`) |
 | Google Fonts | Inter, plus Noto Sans Devanagari for Hindi | `templates/index.html` |
 
 ## Evaluation notes
@@ -60,9 +60,9 @@ form → validation.py → logic.parse_and_analyse_table → logic.compute_delta
 |---|---|---|
 | Problem statement alignment | Every ask in the challenge maps to one visible feature: messy input, flags, role-based actions, row citations, since last brief, note, bilingual advisory at two reading levels, care groups; the advisory goes to residents through WhatsApp, where they already are | `BRIEF.md`, `templates/index.html`, `logic.py` |
 | Code quality | Routes, AI, deterministic logic and validation in separate modules; type hints and docstrings throughout; design system fully tokenised | `main.py`, `ai.py`, `logic.py`, `validation.py`, `static/styles.css` |
-| Security | Allowlisted role, language and level; 2,000-character table limit; 64 KB request cap; Jinja autoescape; `textContent` only in JS; CSP, nosniff, referrer and frame headers; 20 requests a minute per IP on `/analyse`; hashed staff password; signed session; secrets in Secret Manager; user data in delimiters and treated as data by the system instruction | `validation.py`, `main.py`, `ai.py`, `static/app.js` |
-| Efficiency | 15-minute LRU cache, 20 second timeout, compact row payload to Gemini, no build step, one small CSS and JS file | `ai.py`, `static/` |
-| Testing | 204 pytest cases, no network (Gemini replaced by a fake client), 98% line coverage of app code: parsing, units, flags, AQI boundaries, deltas, citation checks, validation, every route, fallback and honest error, cache, schema checks, prompt injection, rate limit, sign-in, security headers. Includes regression tests for two bugs the suite found and that were then fixed | `tests/` |
+| Security | Allowlisted role, language and level; 2,000-character table limit; 64 KB request cap; Jinja autoescape; `textContent` only in JS; CSP, HSTS, nosniff, referrer, frame and permissions headers; 20 requests a minute per IP on `/analyse`, keyed on the address Cloud Run sees so it cannot be spoofed; hashed staff password; signed `HttpOnly`, `Secure`, `SameSite=Lax` session cookie; secrets in Secret Manager; user data in delimiters with `<` and `>` escaped, treated as data by the system instruction | `validation.py`, `main.py`, `ai.py`, `static/app.js` |
+| Efficiency | 15-minute LRU cache; one reused Gemini client; compact JSON prompt (no indentation); 20 second timeout; sample data loaded once at startup; static files cached for an hour; stale rate-limit entries pruned; no build step, one small CSS and JS file | `ai.py`, `main.py`, `static/` |
+| Testing | 207 pytest cases, no network (Gemini replaced by a fake client), 98% line coverage of app code: parsing, units, flags, AQI boundaries, deltas, citation checks, validation, every route, fallback and honest error, cache, schema checks, prompt injection, rate limit, sign-in, security headers including HSTS, radio labels and invalid states. Includes regression tests for two bugs the suite found and that were then fixed | `tests/` |
 | Accessibility | WCAG 2.2 AA: skip link, landmarks, one h1, fieldsets with legends, hints and errors tied with `aria-describedby`, `aria-invalid`, `aria-live` status, focus moves to the brief or the first error, ARIA tabs with arrow keys, AQI always colour plus word plus number, 3:1 control borders, reduced motion, works at 360 px | `templates/index.html`, `static/styles.css`, `static/app.js` |
 | Google services | Gemini, Cloud Run, Cloud Build, Secret Manager, Cloud Logging, Google Fonts | table above |
 
@@ -96,11 +96,11 @@ The suite makes no network calls and uses no Gemini quota: `tests/conftest.py` s
 ## Deploy
 
 ```bash
-gcloud run deploy ward-air-brief --source . --project pw-bhopal-1114 --region asia-south1 --allow-unauthenticated --max-instances 2 --set-secrets GEMINI_API_KEY=gemini-api-key-free:latest,FLASK_SECRET_KEY=flask-secret-key:latest --set-env-vars GEMINI_MODEL=gemini-3.5-flash,GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
+gcloud run deploy vayubrief --source . --project pw-bhopal-1114 --region asia-south1 --allow-unauthenticated --max-instances 2 --set-secrets GEMINI_API_KEY=gemini-api-key-free:latest,FLASK_SECRET_KEY=flask-secret-key:latest --set-env-vars GEMINI_MODEL=gemini-3.5-flash,GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 ```
 
 ```bash
-gcloud run services logs read ward-air-brief --project pw-bhopal-1114 --region asia-south1 --limit 50
+gcloud run services logs read vayubrief --project pw-bhopal-1114 --region asia-south1 --limit 50
 ```
 
 ## Honest limits

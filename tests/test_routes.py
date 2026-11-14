@@ -21,6 +21,7 @@ EXPECTED_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "DENY",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 }
 
 
@@ -295,3 +296,9 @@ def test_whatsapp_link_says_it_opens_a_new_tab(client, fake_gemini) -> None:
     fake_gemini()
     page = _html(client.post("/analyse", data=FORM))
     assert "(opens in a new tab)" in page
+
+
+def test_invalid_radio_group_is_marked_invalid(client) -> None:
+    page = _html(client.post("/analyse", data={**FORM, "role": "mayor"}))
+    assert len(re.findall(r'name="role" value="[^"]+"[^>]*aria-invalid="true"', page)) == 3
+    assert 'name="language" value="en" checked aria-invalid' not in page

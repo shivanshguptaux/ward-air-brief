@@ -14,15 +14,11 @@ from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 
-HONEST_ERROR_MESSAGE = (
-    "The analysis couldn't run right now. Please try again in a minute."
-)
-
+HONEST_ERROR_MESSAGE = "The analysis couldn't run right now. Please try again in a minute."
 DEFAULT_PRIMARY_MODEL = "gemini-3.5-flash"
 DEFAULT_FALLBACK_MODEL = "gemini-3.5-flash-lite"
-
 TIMEOUT_MS = 20_000
-CACHE_TTL_SECONDS = 15 * 60  # 15 minutes
+CACHE_TTL_SECONDS = 15 * 60
 CACHE_MAX_SIZE = 64
 
 SYSTEM_INSTRUCTION = """You are an Air Quality Civic Intelligence Assistant for Indian municipal wards, housing societies, and schools.
@@ -85,12 +81,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
         "since_last_brief_narrative": {"type": "STRING"},
         "internal_note": {
             "type": "OBJECT",
-            "required": [
-                "subject",
-                "situation_summary",
-                "operational_directives",
-                "monitoring_gaps_note",
-            ],
+            "required": ["subject", "situation_summary", "operational_directives", "monitoring_gaps_note"],
             "properties": {
                 "subject": {"type": "STRING"},
                 "situation_summary": {"type": "STRING"},
@@ -100,13 +91,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
         },
         "citizen_advisory": {
             "type": "OBJECT",
-            "required": [
-                "headline",
-                "general_advice",
-                "children",
-                "older_adults",
-                "sensitive_groups",
-            ],
+            "required": ["headline", "general_advice", "children", "older_adults", "sensitive_groups"],
             "properties": {
                 "headline": {"type": "STRING"},
                 "general_advice": {"type": "STRING"},
@@ -118,8 +103,8 @@ RESPONSE_SCHEMA: dict[str, Any] = {
     },
 }
 
-# Module-level shared 15-minute LRU cache: key -> (timestamp_monotonic, response_dict, model_name)
 _RESPONSE_CACHE: OrderedDict[str, tuple[float, dict[str, Any], str]] = OrderedDict()
+_CLIENT_CACHE: tuple[str, genai.Client] | None = None
 
 
 class AIAnalysisError(Exception):
@@ -127,17 +112,13 @@ class AIAnalysisError(Exception):
 
 
 def clear_ai_cache() -> None:
-    """Clear the in-memory AI response cache (used in tests)."""
+    """Clear the in-memory AI response cache and cached client."""
+    global _CLIENT_CACHE
     _RESPONSE_CACHE.clear()
+    _CLIENT_CACHE = None
 
 
-def _make_cache_key(
-    parsed: dict[str, Any],
-    delta: dict[str, Any],
-    role: str,
-    language: str,
-    reading_level: str,
-) -> str:
+def _make_cache_key(parsed: dict[str, Any], delta: dict[str, Any], role: str, language: str, reading_level: str) -> str:
     """Create a deterministic SHA-256 key for identical analysis requests."""
     payload = {
         "rows": parsed.get("rows", []),
@@ -173,13 +154,13 @@ def _cache_put(key: str, data: dict[str, Any], model_name: str) -> None:
         _RESPONSE_CACHE.popitem(last=False)
 
 
-def _build_user_prompt(
-    parsed: dict[str, Any],
-    delta: dict[str, Any],
-    role: str,
-    language: str,
-    reading_level: str,
-) -> str:
+def _json_block(value: Any) -> str:
+    """Serialise data compactly for the prompt with < and > escaped so user text cannot close a delimiter tag."""
+    text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return text.replace("<", "\\u003c").replace(">", "\\u003e")
+
+
+def _build_user_prompt(parsed: dict[str, Any], delta: dict[str, Any], role: str, language: str, reading_level: str) -> str:
     """Format deterministic data inside clear XML delimiters."""
     language_name = "Hindi (हिन्दी in Devanagari script)" if language == "hi" else "English"
     compact_rows = [
@@ -197,15 +178,9 @@ def _build_user_prompt(
         }
         for r in parsed.get("rows", [])
     ]
-    cleaned_payload = {
-        "stations": parsed.get("stations", []),
-        "trust": parsed.get("trust", {}),
-        "rows": compact_rows,
-    }
+    cleaned_payload = {"stations": parsed.get("stations", []), "trust": parsed.get("trust", {}), "rows": compact_rows}
     return (
-        f"Requested parameters:\n"
-        f"- role: {role}\n"
-        f"- language: {language} ({language_name})\n"
+        f"Requested parameters:\n- role: {role}\n- language: {language} ({language_name})\n"
         f"- reading_level: {reading_level}\n\n"
         f"<cleaned_data>\n{_json_block(cleaned_payload)}\n</cleaned_data>\n\n"
         f"<data_flags>\n{_json_block(parsed.get('flags', []))}\n</data_flags>\n\n"
@@ -213,29 +188,19 @@ def _build_user_prompt(
     )
 
 
-def _json_block(value: Any) -> str:
-    """Serialise data for the prompt with < and > escaped, so user text cannot open or close a delimiter tag."""
-    text = json.dumps(value, ensure_ascii=False, indent=2)
-    return text.replace("<", "\\u003c").replace(">", "\\u003e")
-
-
 def validate_ai_schema(data: Any) -> dict[str, Any]:
     """Validate that parsed JSON from Gemini matches RESPONSE_SCHEMA before returning it."""
     if not isinstance(data, dict):
         raise TypeError("Gemini output is not a JSON object.")
-
-    required_top = RESPONSE_SCHEMA["required"]
-    for key in required_top:
+    for key in RESPONSE_SCHEMA["required"]:
         if key not in data:
             raise ValueError(f"Missing required field '{key}' in Gemini output.")
-
     if not isinstance(data["lead_line"], str) or not data["lead_line"].strip():
         raise ValueError("lead_line must be a non-empty string.")
     if not isinstance(data["trend_summary"], str) or not data["trend_summary"].strip():
         raise ValueError("trend_summary must be a non-empty string.")
     if not isinstance(data["since_last_brief_narrative"], str):
         raise TypeError("since_last_brief_narrative must be a string.")
-
     if not isinstance(data["hotspots"], list) or not data["hotspots"]:
         raise ValueError("hotspots must be a non-empty list.")
     for hs in data["hotspots"]:
@@ -246,7 +211,6 @@ def validate_ai_schema(data: Any) -> dict[str, Any]:
                 raise ValueError(f"Hotspot missing '{k}'.")
         if not isinstance(hs["row_ids"], list) or not all(isinstance(x, int) for x in hs["row_ids"]):
             raise ValueError("Hotspot row_ids must be a list of integers.")
-
     if not isinstance(data["actions"], list) or not data["actions"]:
         raise ValueError("actions must be a non-empty list.")
     for act in data["actions"]:
@@ -257,7 +221,6 @@ def validate_ai_schema(data: Any) -> dict[str, Any]:
                 raise ValueError(f"Action missing '{k}'.")
         if not isinstance(act["row_ids"], list) or not all(isinstance(x, int) for x in act["row_ids"]):
             raise ValueError("Action row_ids must be a list of integers.")
-
     note = data["internal_note"]
     if not isinstance(note, dict):
         raise TypeError("internal_note must be an object.")
@@ -266,23 +229,21 @@ def validate_ai_schema(data: Any) -> dict[str, Any]:
             raise ValueError(f"internal_note missing '{k}'.")
     if not isinstance(note["operational_directives"], list):
         raise TypeError("operational_directives must be a list.")
-
     adv = data["citizen_advisory"]
     if not isinstance(adv, dict):
         raise TypeError("citizen_advisory must be an object.")
     for k in ("headline", "general_advice", "children", "older_adults", "sensitive_groups"):
         if k not in adv or not isinstance(adv[k], str) or not adv[k].strip():
             raise ValueError(f"citizen_advisory missing non-empty '{k}'.")
-
     return data
 
 
 def _get_client(api_key: str) -> genai.Client:
-    """Create a google-genai client with a 20-second HTTP timeout."""
-    return genai.Client(
-        api_key=api_key,
-        http_options=types.HttpOptions(timeout=TIMEOUT_MS),
-    )
+    """Return a cached google-genai client with a 20-second HTTP timeout, creating it once per key."""
+    global _CLIENT_CACHE
+    if _CLIENT_CACHE is None or _CLIENT_CACHE[0] != api_key:
+        _CLIENT_CACHE = (api_key, genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=TIMEOUT_MS)))
+    return _CLIENT_CACHE[1]
 
 
 def _call_model(client: genai.Client, model_name: str, prompt: str) -> dict[str, Any]:
@@ -293,36 +254,18 @@ def _call_model(client: genai.Client, model_name: str, prompt: str) -> dict[str,
         response_schema=RESPONSE_SCHEMA,
         temperature=0.2,
     )
-    response = client.models.generate_content(
-        model=model_name,
-        contents=prompt,
-        config=config,
-    )
+    response = client.models.generate_content(model=model_name, contents=prompt, config=config)
     raw_text = getattr(response, "text", None)
     if not raw_text:
         raise ValueError("Empty response text from Gemini.")
-    parsed_json = json.loads(raw_text)
-    return validate_ai_schema(parsed_json)
+    return validate_ai_schema(json.loads(raw_text))
 
 
-def generate_civic_brief(
-    parsed: dict[str, Any],
-    delta: dict[str, Any],
-    role: str,
-    language: str,
-    reading_level: str,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Call Gemini (with 15-min LRU cache and fallback retry) to generate the civic brief.
-
-    Returns (validated_ai_dict, call_metadata).
-    Raises AIAnalysisError with HONEST_ERROR_MESSAGE when the AI call cannot run.
-    """
+def generate_civic_brief(parsed: dict[str, Any], delta: dict[str, Any], role: str, language: str, reading_level: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Call Gemini (with 15-min LRU cache and fallback retry) to generate the civic brief."""
     start_t = time.monotonic()
     primary_model = os.environ.get("GEMINI_MODEL", DEFAULT_PRIMARY_MODEL).strip() or DEFAULT_PRIMARY_MODEL
-    fallback_model = (
-        os.environ.get("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
-    )
-
+    fallback_model = os.environ.get("GEMINI_FALLBACK_MODEL", DEFAULT_FALLBACK_MODEL).strip() or DEFAULT_FALLBACK_MODEL
     if not parsed.get("stations") or not parsed.get("rows"):
         raise AIAnalysisError(HONEST_ERROR_MESSAGE)
 
@@ -330,13 +273,7 @@ def generate_civic_brief(
     cached = _cache_get(cache_key)
     if cached is not None:
         cached_data, cached_model = cached
-        meta = {
-            "model": cached_model,
-            "latency_ms": round((time.monotonic() - start_t) * 1000, 2),
-            "cache_hit": True,
-            "fallback_used": False,
-        }
-        return cached_data, meta
+        return cached_data, {"model": cached_model, "latency_ms": round((time.monotonic() - start_t) * 1000, 2), "cache_hit": True, "fallback_used": False}
 
     api_key = (os.environ.get("GEMINI_API_KEY") or "").strip()
     if not api_key:
@@ -344,7 +281,6 @@ def generate_civic_brief(
 
     prompt = _build_user_prompt(parsed, delta, role, language, reading_level)
     client = _get_client(api_key)
-
     fallback_used = False
     used_model = primary_model
 
@@ -359,10 +295,4 @@ def generate_civic_brief(
             raise AIAnalysisError(HONEST_ERROR_MESSAGE) from exc
 
     _cache_put(cache_key, result, used_model)
-    meta = {
-        "model": used_model,
-        "latency_ms": round((time.monotonic() - start_t) * 1000, 2),
-        "cache_hit": False,
-        "fallback_used": fallback_used,
-    }
-    return result, meta
+    return result, {"model": used_model, "latency_ms": round((time.monotonic() - start_t) * 1000, 2), "cache_hit": False, "fallback_used": fallback_used}

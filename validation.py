@@ -23,36 +23,20 @@ VALID_READING_LEVELS: dict[str, str] = {
 }
 
 
-def validate_analysis_input(
-    raw_table: Any,
-    role: Any,
-    language: Any,
-    reading_level: Any,
-) -> tuple[dict[str, str], dict[str, str]]:
-    """Validate user inputs before parsing or calling Gemini.
-
-    Returns (cleaned_inputs, field_errors).
-    """
+def validate_analysis_input(raw_table: Any, role: Any, language: Any, reading_level: Any) -> tuple[dict[str, str], dict[str, str]]:
+    """Validate user inputs before parsing or calling Gemini. Returns (cleaned_inputs, field_errors)."""
     errors: dict[str, str] = {}
-
-    if not isinstance(raw_table, str):
-        raw_text = ""
-    else:
-        raw_text = raw_table.strip()
+    raw_text = raw_table.strip() if isinstance(raw_table, str) else ""
 
     if not raw_text:
-        errors["raw_table"] = (
-            "Paste an air quality table, upload a CSV file, or choose an Example sheet."
-        )
+        errors["raw_table"] = "Paste an air quality table, upload a CSV file, or choose an Example sheet."
     elif len(raw_text) > MAX_TABLE_CHARS:
         errors["raw_table"] = (
             f"Table is {len(raw_text)} characters. Please keep pasted or uploaded tables "
             f"under {MAX_TABLE_CHARS} characters."
         )
     elif "\n" not in raw_text:
-        errors["raw_table"] = (
-            "Include a header row and at least one data row."
-        )
+        errors["raw_table"] = "Include a header row and at least one data row."
 
     role_str = str(role or "").strip()
     if role_str not in VALID_ROLES:
