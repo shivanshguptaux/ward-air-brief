@@ -2,10 +2,18 @@
 
 Turn a messy ward air quality sheet into a traceable brief, ranked local actions, an internal note and a citizen advisory in English or Hindi.
 
-**Live:** https://vayubrief-64na6zdzrq-el.a.run.app
+**Live demo:** taken down after the event on 14 Nov 2026. To try it, [run it locally](#run-locally) with your own Gemini API key.
+
+![The brief for Ward 31: TT Nagar is the hotspot, with station cards on India's AQI scale](docs/screenshots/brief.png)
+
+| Data trust | Citizen advisory |
+|---|---|
+| ![Every flagged reading listed by row: unit conversions, a missing value, a reading above the 999 cap and a stuck sensor](docs/screenshots/data-trust.png) | ![The phone-sized advisory with separate lines for children, older adults and sensitive people](docs/screenshots/citizen-advisory.png) |
+
+Screenshots are from a real run on the example sheets, with Gemini writing the brief.
 
 **Try it in 30 seconds**
-1. Open the live URL and press **This week · Ward 31**, then **Analyse sheet**.
+1. Run the app and press **This week · Ward 31**, then **Analyse sheet**.
 2. Read the lead line, then press any **Row** chip to jump to the reading it came from in **Data trust**.
 3. Open **Internal note** and press **Sign in** (demo account `ravi.ward31` / `bhopal-clean-air`, already filled in). Open **Citizen advisory** for the resident card and press **Share on WhatsApp** to send it.
 
@@ -73,10 +81,10 @@ uv venv .venv --python 3.13 && uv pip install --python .venv -r requirements.txt
 ```
 
 ```bash
-GEMINI_API_KEY="$(gcloud secrets versions access latest --secret=gemini-api-key-free --project pw-bhopal-1114)" .venv/bin/flask --app main run --port 8080
+GEMINI_API_KEY="your-key" .venv/bin/flask --app main run --port 8080
 ```
 
-Open http://localhost:8080. Health check: `/health`. Without a key the app still runs and shows the honest error on analysis.
+Get a free key from [Google AI Studio](https://aistudio.google.com/apikey). Open http://localhost:8080. Health check: `/health`. Without a key the app still runs and shows the honest error on analysis.
 
 ## Tests
 
