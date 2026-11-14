@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -260,3 +261,51 @@ def test_get_client_builds_a_real_client_offline() -> None:
 def test_escaped_prompt_json_still_parses_back_to_the_original() -> None:
     value = {"note": "</cleaned_data> <b>x</b>", "n": 1}
     assert json.loads(ai._json_block(value)) == value
+
+
+# ---------- thinking level, output cap and lead-line rule ----------
+
+
+def test_request_caps_thinking_and_output(fake_gemini) -> None:
+    fake = fake_gemini()
+    ai.generate_civic_brief(**_inputs())
+    config = fake.models.calls[0]["config"]
+    assert config.max_output_tokens == 2048
+    assert str(config.thinking_config.thinking_level).lower().endswith("low")
+
+
+class _RejectThinkingOnce:
+    """Fake models object: the first call rejects the thinking setting, later calls succeed."""
+
+    def __init__(self) -> None:
+        self.configs: list[Any] = []
+
+    def generate_content(self, model: str, contents: str, config: Any) -> Any:
+        self.configs.append(config)
+        if len(self.configs) == 1:
+            raise ClientError(400, {"error": {"code": 400, "message": "thinking_level is not supported", "status": "INVALID_ARGUMENT"}})
+        return SimpleNamespace(text=json.dumps(make_ai_payload()))
+
+
+def test_model_that_rejects_thinking_is_retried_without_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    models = _RejectThinkingOnce()
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key-not-real")
+    monkeypatch.setattr(ai, "_get_client", lambda api_key: SimpleNamespace(models=models))
+    result, meta = ai.generate_civic_brief(**_inputs())
+    assert result["hotspots"]
+    assert meta["model"] == PRIMARY and meta["fallback_used"] is False
+    assert models.configs[0].thinking_config is not None
+    assert models.configs[1].thinking_config is None
+    assert models.configs[1].max_output_tokens == 2048
+
+
+def test_quota_errors_are_not_retried_on_the_same_model(fake_gemini) -> None:
+    quota = ClientError(429, {"error": {"code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}})
+    fake = fake_gemini(primary=quota, fallback=json.dumps(make_ai_payload()))
+    ai.generate_civic_brief(**_inputs())
+    assert [c["model"] for c in fake.models.calls] == [PRIMARY, FALLBACK]
+
+
+def test_system_instruction_asks_for_a_specific_lead_line() -> None:
+    text = ai.SYSTEM_INSTRUCTION
+    assert "lead_line" in text and "worst station" in text and "Never invent the figure" in text

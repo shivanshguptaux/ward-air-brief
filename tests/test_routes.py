@@ -302,3 +302,68 @@ def test_invalid_radio_group_is_marked_invalid(client) -> None:
     page = _html(client.post("/analyse", data={**FORM, "role": "mayor"}))
     assert len(re.findall(r'name="role" value="[^"]+"[^>]*aria-invalid="true"', page)) == 3
     assert 'name="language" value="en" checked aria-invalid' not in page
+
+
+def test_hindi_text_in_the_interface_is_marked_with_its_language(client) -> None:
+    page = _html(client.get("/"))
+    assert 'Hindi (<span lang="hi">हिन्दी</span>)' in page
+
+
+def test_hindi_brief_marks_language_labels_and_english_inside_hindi(client, fake_gemini) -> None:
+    fake_gemini()
+    page = _html(client.post("/analyse", data={**FORM, "language": "hi"}))
+    assert page.count('Hindi (<span lang="hi">हिन्दी</span>)') >= 3  # option, brief meta, advisory meta
+    assert '(<span lang="en">Share on WhatsApp</span>)' in page
+    # Outside the Hindi card and note, no raw Devanagari is left untagged in the language labels
+    assert "Hindi (हिन्दी)" not in page
+
+
+# ---------- cross-origin posts, sign-in limit, pruning ----------
+
+
+def test_cross_origin_post_is_rejected(client) -> None:
+    response = client.post("/analyse", data=FORM, headers={"Origin": "https://evil.example"})
+    assert response.status_code == 403
+    assert response.get_json()["ok"] is False
+
+
+def test_same_origin_post_is_allowed(client) -> None:
+    response = client.post("/analyse", data={**FORM, "raw_table": ""}, headers={"Origin": "http://localhost"})
+    assert response.status_code == 400  # reached validation, not blocked
+
+
+def test_cross_origin_sign_in_is_rejected(client) -> None:
+    response = client.post(
+        "/staff-login",
+        data={"username": main.STAFF_DEMO_USERNAME, "password": main.STAFF_DEMO_PASSWORD_DISPLAY},
+        headers={"Origin": "https://evil.example"},
+    )
+    assert response.status_code == 403
+    with client.session_transaction() as session:
+        assert "is_staff" not in session
+
+
+def test_sign_in_attempts_are_rate_limited(client) -> None:
+    for _ in range(main.RATE_LIMIT_MAX):
+        client.post("/staff-login", data={"username": "x", "password": "y"}, headers={"X-Requested-With": "XMLHttpRequest"})
+    response = client.post(
+        "/staff-login",
+        data={"username": main.STAFF_DEMO_USERNAME, "password": main.STAFF_DEMO_PASSWORD_DISPLAY},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert response.status_code == 429
+    assert "Too many" in response.get_json()["error"]
+
+
+def test_stale_addresses_are_pruned_once_per_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [1000.0]
+    monkeypatch.setattr(main.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(main, "_last_prune", 0.0)
+    main._check_rate_limit("1.1.1.1")
+    clock[0] += main.RATE_LIMIT_WINDOW_SEC + 1
+    main._check_rate_limit("2.2.2.2")  # a full window later: the stale address is pruned
+    assert "1.1.1.1" not in main._ip_requests
+    main._check_rate_limit("3.3.3.3")
+    clock[0] += 1
+    main._check_rate_limit("4.4.4.4")  # inside the same window: no new prune pass
+    assert {"2.2.2.2", "3.3.3.3", "4.4.4.4"} <= set(main._ip_requests)

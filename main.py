@@ -11,6 +11,7 @@ from collections import defaultdict, deque
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from flask import (
     Flask,
@@ -56,6 +57,7 @@ STAFF_PASSWORD_HASH = generate_password_hash(STAFF_DEMO_PASSWORD_DISPLAY)
 RATE_LIMIT_MAX = 20
 RATE_LIMIT_WINDOW_SEC = 60.0
 _ip_requests: dict[str, deque[float]] = defaultdict(deque)
+_last_prune: float = 0.0
 SAMPLE_DATA_PATH = Path(__file__).parent / "sample_data.json"
 SAMPLE_DATA: dict[str, Any] = json.loads(SAMPLE_DATA_PATH.read_text(encoding="utf-8"))
 
@@ -66,10 +68,13 @@ def _load_sample_data() -> dict[str, Any]:
 
 
 def _check_rate_limit(ip: str) -> bool:
-    """Return True if the IP is within the 20 req/min limit, pruning stale entries."""
+    """Return True if the IP is within the 20 req/min limit, pruning stale entries periodically."""
+    global _last_prune
     now = time.monotonic()
-    for stale_ip in [k for k, q in _ip_requests.items() if not q or (now - q[-1]) > RATE_LIMIT_WINDOW_SEC]:
-        _ip_requests.pop(stale_ip, None)
+    if (now - _last_prune) >= RATE_LIMIT_WINDOW_SEC or now < _last_prune:
+        for stale_ip in [k for k, q in _ip_requests.items() if not q or (now - q[-1]) > RATE_LIMIT_WINDOW_SEC]:
+            _ip_requests.pop(stale_ip, None)
+        _last_prune = now
     bucket = _ip_requests[ip]
     while bucket and (now - bucket[0]) > RATE_LIMIT_WINDOW_SEC:
         bucket.popleft()
@@ -86,25 +91,23 @@ def _client_ip() -> str:
 
 
 @app.before_request
-def _start_timer() -> None:
+def _start_timer() -> tuple[Response, int] | None:
     request.environ["_start_t"] = time.monotonic()
+    if request.method == "POST":
+        origin = request.headers.get("Origin", "")
+        if origin and urlparse(origin).netloc != request.host:
+            return jsonify({"ok": False, "error": "Cross-origin POST forbidden."}), 403
+    return None
 
 
 @app.after_request
 def _apply_headers_and_log(response: Response) -> Response:
     """Attach required security headers and emit one structured JSON log line per request."""
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "style-src 'self' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com; "
-        "script-src 'self'; "
-        "img-src 'self' data:; "
-        "media-src 'self' blob:; "
-        "connect-src 'self'; "
-        "object-src 'none'; "
-        "frame-ancestors 'none'; "
-        "base-uri 'self'; "
-        "form-action 'self'"
+        "default-src 'self'; style-src 'self' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; script-src 'self'; img-src 'self' data:; "
+        "media-src 'self' blob:; connect-src 'self'; object-src 'none'; "
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -145,7 +148,14 @@ def _handle_internal_error(_err: InternalServerError) -> tuple[Response | str, i
     return _render_workspace(general_error=HONEST_ERROR_MESSAGE), 500
 
 
-def _render_workspace(*, form_values: dict[str, str] | None = None, field_errors: dict[str, str] | None = None, general_error: str | None = None, result: dict[str, Any] | None = None, login_error: str | None = None) -> str:
+def _render_workspace(
+    *,
+    form_values: dict[str, str] | None = None,
+    field_errors: dict[str, str] | None = None,
+    general_error: str | None = None,
+    result: dict[str, Any] | None = None,
+    login_error: str | None = None,
+) -> str:
     """Render the main two-pane workspace template with current state."""
     samples = _load_sample_data()
     defaults = {"raw_table": "", "role": "ward_officer", "language": "en", "reading_level": "simple"}
@@ -222,18 +232,14 @@ def analyse() -> tuple[str | Response, int] | str:
 
     delta = compute_delta(parsed["stations"], session.get("previous_brief"))
     try:
-        ai_out = generate_civic_brief(
+        raw_ai, ai_meta = generate_civic_brief(
             parsed=parsed,
             delta=delta,
             role=cleaned_inputs["role"],
             language=cleaned_inputs["language"],
             reading_level=cleaned_inputs["reading_level"],
         )
-        if isinstance(ai_out, tuple) and len(ai_out) == 2:
-            raw_ai, ai_meta = ai_out
-            request.environ["_ai_meta"] = ai_meta
-        else:
-            raw_ai = ai_out
+        request.environ["_ai_meta"] = ai_meta
         verified_ai = verify_citations(raw_ai, parsed)
         if not verified_ai.get("hotspots") or not verified_ai.get("actions"):
             raise AIAnalysisError(HONEST_ERROR_MESSAGE)
@@ -262,8 +268,10 @@ def analyse() -> tuple[str | Response, int] | str:
 
 
 @app.post("/staff-login")
-def staff_login() -> Response:
+def staff_login() -> Response | tuple[Response, int]:
     """Verify staff credentials with werkzeug.security hash for the internal note."""
+    if not _check_rate_limit(_client_ip()):
+        return jsonify({"ok": False, "error": "Too many sign-in attempts. Please wait a minute and try again."}), 429
     username = (request.form.get("username") or "").strip()[:120]
     password = (request.form.get("password") or "")[:120]
     if username == STAFF_DEMO_USERNAME and check_password_hash(STAFF_PASSWORD_HASH, password):

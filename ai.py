@@ -33,18 +33,14 @@ Rules:
    - school: moving morning assembly and outdoor sports indoors during inversion hours, closing street-facing classroom windows during peak traffic, bus no-idling at dispersal, inhaler readiness.
 5. Write internal_note and citizen_advisory in the requested language (en = English, hi = Hindi in Devanagari script) and reading_level (simple = everyday words, short sentences, zero AQI jargon; standard = clear civic terminology).
 6. In citizen_advisory, provide specific, caring, plain-language lines for children, older_adults, and sensitive_groups.
+7. lead_line is one sentence of at most 25 words that names the worst station, its key figure from <cleaned_data> (for example average PM2.5 and the AQI category) and the likely cause, for example 'TT Nagar is the hotspot: PM2.5 averages 219 µg/m³ (Very Poor), likely construction dust.' Never invent the figure.
 """
 
 RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "OBJECT",
     "required": [
-        "lead_line",
-        "trend_summary",
-        "hotspots",
-        "actions",
-        "since_last_brief_narrative",
-        "internal_note",
-        "citizen_advisory",
+        "lead_line", "trend_summary", "hotspots", "actions",
+        "since_last_brief_narrative", "internal_note", "citizen_advisory",
     ],
     "properties": {
         "lead_line": {"type": "STRING"},
@@ -55,10 +51,8 @@ RESPONSE_SCHEMA: dict[str, Any] = {
                 "type": "OBJECT",
                 "required": ["location", "summary", "likely_cause", "confidence", "row_ids"],
                 "properties": {
-                    "location": {"type": "STRING"},
-                    "summary": {"type": "STRING"},
-                    "likely_cause": {"type": "STRING"},
-                    "confidence": {"type": "STRING", "enum": ["high", "low"]},
+                    "location": {"type": "STRING"}, "summary": {"type": "STRING"},
+                    "likely_cause": {"type": "STRING"}, "confidence": {"type": "STRING", "enum": ["high", "low"]},
                     "row_ids": {"type": "ARRAY", "items": {"type": "INTEGER"}},
                 },
             },
@@ -69,10 +63,8 @@ RESPONSE_SCHEMA: dict[str, Any] = {
                 "type": "OBJECT",
                 "required": ["priority", "who", "what", "by_when", "confidence", "row_ids"],
                 "properties": {
-                    "priority": {"type": "INTEGER"},
-                    "who": {"type": "STRING"},
-                    "what": {"type": "STRING"},
-                    "by_when": {"type": "STRING"},
+                    "priority": {"type": "INTEGER"}, "who": {"type": "STRING"},
+                    "what": {"type": "STRING"}, "by_when": {"type": "STRING"},
                     "confidence": {"type": "STRING", "enum": ["high", "low"]},
                     "row_ids": {"type": "ARRAY", "items": {"type": "INTEGER"}},
                 },
@@ -83,8 +75,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
             "type": "OBJECT",
             "required": ["subject", "situation_summary", "operational_directives", "monitoring_gaps_note"],
             "properties": {
-                "subject": {"type": "STRING"},
-                "situation_summary": {"type": "STRING"},
+                "subject": {"type": "STRING"}, "situation_summary": {"type": "STRING"},
                 "operational_directives": {"type": "ARRAY", "items": {"type": "STRING"}},
                 "monitoring_gaps_note": {"type": "STRING"},
             },
@@ -93,10 +84,8 @@ RESPONSE_SCHEMA: dict[str, Any] = {
             "type": "OBJECT",
             "required": ["headline", "general_advice", "children", "older_adults", "sensitive_groups"],
             "properties": {
-                "headline": {"type": "STRING"},
-                "general_advice": {"type": "STRING"},
-                "children": {"type": "STRING"},
-                "older_adults": {"type": "STRING"},
+                "headline": {"type": "STRING"}, "general_advice": {"type": "STRING"},
+                "children": {"type": "STRING"}, "older_adults": {"type": "STRING"},
                 "sensitive_groups": {"type": "STRING"},
             },
         },
@@ -165,16 +154,10 @@ def _build_user_prompt(parsed: dict[str, Any], delta: dict[str, Any], role: str,
     language_name = "Hindi (हिन्दी in Devanagari script)" if language == "hi" else "English"
     compact_rows = [
         {
-            "row_id": r["row_id"],
-            "station": r["station"],
-            "timestamp": r["timestamp"],
-            "pm25_ugm3": r["pm25"],
-            "pm10_ugm3": r["pm10"],
-            "cpcb_aqi": r["aqi"],
-            "cpcb_category": r["aqi_category"],
-            "unit_converted_from_mg": r["unit_converted"],
-            "has_error_flag": r["has_error_flag"],
-            "notes": r["notes"],
+            "row_id": r["row_id"], "station": r["station"], "timestamp": r["timestamp"],
+            "pm25_ugm3": r["pm25"], "pm10_ugm3": r["pm10"], "cpcb_aqi": r["aqi"],
+            "cpcb_category": r["aqi_category"], "unit_converted_from_mg": r["unit_converted"],
+            "has_error_flag": r["has_error_flag"], "notes": r["notes"],
         }
         for r in parsed.get("rows", [])
     ]
@@ -253,8 +236,22 @@ def _call_model(client: genai.Client, model_name: str, prompt: str) -> dict[str,
         response_mime_type="application/json",
         response_schema=RESPONSE_SCHEMA,
         temperature=0.2,
+        max_output_tokens=2048,
+        thinking_config=types.ThinkingConfig(thinking_level="low"),
     )
-    response = client.models.generate_content(model=model_name, contents=prompt, config=config)
+    try:
+        response = client.models.generate_content(model=model_name, contents=prompt, config=config)
+    except APIError as exc:
+        if getattr(exc, "code", None) != 400 and "thinking" not in str(exc).lower():
+            raise
+        fallback_config = types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION,
+            response_mime_type="application/json",
+            response_schema=RESPONSE_SCHEMA,
+            temperature=0.2,
+            max_output_tokens=2048,
+        )
+        response = client.models.generate_content(model=model_name, contents=prompt, config=fallback_config)
     raw_text = getattr(response, "text", None)
     if not raw_text:
         raise ValueError("Empty response text from Gemini.")

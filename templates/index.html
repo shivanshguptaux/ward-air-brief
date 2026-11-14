@@ -14,6 +14,14 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
+  {# A language label like "Hindi (हिन्दी)": the native name is marked with its own lang (WCAG 3.1.2) #}
+  {% macro language_name(code, label) -%}
+    {%- if ' (' in label and label.endswith(')') -%}
+      {{ label.split(' (', 1)[0] }} (<span lang="{{ code }}">{{ label.split(' (', 1)[1][:-1] }}</span>)
+    {%- else -%}
+      {{ label }}
+    {%- endif -%}
+  {%- endmacro %}
   {# Icon sprite: used only where an icon carries meaning (data flags, upload, print, next) #}
   <svg class="icon-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
     <symbol id="icon-alert" viewBox="0 0 20 20"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M10 3 18 17H2L10 3Z"/><path stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M10 8.5v3.5M10 14.6v.1"/></symbol>
@@ -116,7 +124,7 @@
             {% for key, label in languages.items() %}
               <label class="segmented__option" for="language-{{ key }}">
                 <input type="radio" id="language-{{ key }}" name="language" value="{{ key }}" {% if form.language == key %}checked{% endif %}{% if field_errors.get('language') %} aria-invalid="true"{% endif %}>
-                <span>{{ label }}</span>
+                <span>{{ language_name(key, label) }}</span>
               </label>
             {% endfor %}
           </div>
@@ -174,7 +182,7 @@
           <article id="result-document" class="brief" tabindex="-1" aria-labelledby="output-heading">
             <header class="brief__header">
               <p class="brief__meta">
-                {{ result.role_label }} · {{ result.language_label }} · {{ result.reading_level_label.split(' (')[0] }} · {{ result.generated_at }}
+                {{ result.role_label }} · {{ language_name(result.language, result.language_label) }} · {{ result.reading_level_label.split(' (')[0] }} · {{ result.generated_at }}
               </p>
               <h2 id="output-heading" class="brief__lead">{{ result.ai.lead_line }}</h2>
               <p class="brief__trend">{{ result.ai.trend_summary }}</p>
@@ -483,7 +491,7 @@
               <div class="tray tray--center">
                 <div class="tray__header">
                   <h4 class="title-md">How residents will see it</h4>
-                  <span class="text-sm text-muted">{{ result.language_label }} · {{ result.reading_level_label.split(' (')[0] }}</span>
+                  <span class="text-sm text-muted">{{ language_name(result.language, result.language_label) }} · {{ result.reading_level_label.split(' (')[0] }}</span>
                 </div>
                 <div class="phone-card" lang="{{ result.language }}">
                   <p class="phone-card__eyebrow">{{ 'वायु सलाह · भोपाल' if result.language == 'hi' else 'Air advisory · Bhopal' }}</p>
@@ -511,7 +519,7 @@
                         rel="noopener noreferrer"
                         class="btn btn--primary"
                       >
-                        {{ 'WhatsApp पर भेजें (Share on WhatsApp)' if result.language == 'hi' else 'Share on WhatsApp' }}
+                        {% if result.language == 'hi' %}WhatsApp पर भेजें (<span lang="en">Share on WhatsApp</span>){% else %}Share on WhatsApp{% endif %}
                         <span class="visually-hidden">{{ '(नए टैब में खुलता है)' if result.language == 'hi' else '(opens in a new tab)' }}</span>
                       </a>
                     </div>
