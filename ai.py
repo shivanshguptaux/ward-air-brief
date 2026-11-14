@@ -133,6 +133,7 @@ def clear_ai_cache() -> None:
 
 def _make_cache_key(
     parsed: dict[str, Any],
+    delta: dict[str, Any],
     role: str,
     language: str,
     reading_level: str,
@@ -141,6 +142,8 @@ def _make_cache_key(
     payload = {
         "rows": parsed.get("rows", []),
         "stations": parsed.get("stations", []),
+        "has_previous": delta.get("has_previous", False),
+        "station_deltas": delta.get("station_deltas", []),
         "role": role,
         "language": language,
         "reading_level": reading_level,
@@ -317,7 +320,7 @@ def generate_civic_brief(
     if not parsed.get("stations") or not parsed.get("rows"):
         raise AIAnalysisError(HONEST_ERROR_MESSAGE)
 
-    cache_key = _make_cache_key(parsed, role, language, reading_level)
+    cache_key = _make_cache_key(parsed, delta, role, language, reading_level)
     cached = _cache_get(cache_key)
     if cached is not None:
         cached_data, cached_model = cached

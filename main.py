@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import time
 from collections import defaultdict, deque
 from datetime import UTC, datetime
@@ -40,9 +41,7 @@ from validation import (
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # 64 KB cap
-app.secret_key = os.environ.get(
-    "FLASK_SECRET_KEY", "pw-bhopal-ward31-civic-session-key-2026"
-)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
 
 # Demo staff credentials for the internal briefing note (shown on the sign-in panel and README)
 STAFF_DEMO_USERNAME = "ravi.ward31"
